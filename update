@@ -1,0 +1,29 @@
+#!/bin/bash
+# update-leafloka.sh
+# Copies updated files from ~/Downloads/ytchatmap to ~/Documents/dev/leafloka
+
+SRC=~/Downloads/ytchatmap
+DST=~/Documents/dev/leafloka
+
+FILES=(
+  "public/index.html"
+  "server/index.js"
+)
+
+echo "Updating LeafLoka..."
+
+for f in "${FILES[@]}"; do
+  src_file="$SRC/$f"
+  dst_file="$DST/$f"
+
+  if [ ! -f "$src_file" ]; then
+    echo "  ✗ missing: $src_file"
+    continue
+  fi
+
+  cp "$src_file" "$dst_file" && echo "  ✓ $f" || echo "  ✗ failed: $f"
+done
+
+rm -rf ~/Downloads/ytchatmap && echo "  🗑  ~/Downloads/ytchatmap removed"
+echo "Done. Restart your server to pick up the changes."
+

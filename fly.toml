@@ -1,0 +1,39 @@
+app = "leafloka"
+primary_region = "bos"   # Boston — close to Watertown MA
+
+[build]
+
+[env]
+  PORT = "3001"
+  NODE_ENV = "production"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 3001
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  # SSE needs longer timeouts
+  [services.http_checks]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+  # Keep the VM alive (SSE polling must be persistent)
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LeafLoka</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.15);
+    --text: #e8edf5;
+    --muted: #6b7a99;
+    --accent: #4ade80;
+    --accent2: #60a5fa;
+    --mono: 'DM Mono', monospace;
+    --display: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--mono); overflow: hidden; }
+
+  #app {
+    display: grid;
+    grid-template-rows: 52px 1fr 48px;
+    height: 100vh;
+    width: 100%;
+  }
+
+  /* BODY — side panel + map */
+  #body {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* HEADER */
+  #header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  #header-left { display: flex; align-items: center; gap: 12px; }
+  #live-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(74,222,128,0.12);
+    border: 1px solid rgba(74,222,128,0.3);
+    padding: 3px 10px; border-radius: 99px;
+    font-size: 11px; color: var(--accent); font-family: var(--mono);
+    letter-spacing: 0.08em;
+  }
+  #live-pulse {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  #live-pill.idle { background: rgba(107,122,153,0.12); border-color: rgba(107,122,153,0.3); color: var(--muted); }
+  #live-pill.idle #live-pulse { background: var(--muted); animation: none; }
+  @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
+
+  #app-title { font-family: var(--display); font-size: 15px; font-weight: 700; letter-spacing: 0.04em; color: var(--text); }
+  #app-title span { color: var(--muted); font-weight: 400; }
+
+  #header-right { display: flex; align-items: center; gap: 16px; }
+  #location-count { font-size: 12px; color: var(--muted); }
+  #location-count strong { color: var(--accent); font-size: 18px; font-family: var(--display); font-weight: 700; }
+
+  /* MAP */
+  #map-wrap { position: relative; overflow: hidden; background: var(--bg); cursor: grab; }
+  #map-wrap:active { cursor: grabbing; }
+  #world-svg { width: 100%; height: 100%; display: block; }
+  .land { fill: #1e2d42; stroke: #2a3f5a; stroke-width: 0.5; }
+  .graticule { fill: none; stroke: rgba(255,255,255,0.03); stroke-width: 0.5; }
+  .dot-group { cursor: pointer; }
+
+  /* TOOLTIP */
+  #tooltip {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 10px; padding: 10px 14px;
+    font-size: 12px; line-height: 1.6; max-width: 240px; z-index: 20;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  #tooltip .tt-place { font-family: var(--display); font-weight: 600; font-size: 14px; color: var(--text); }
+  #tooltip .tt-weather { font-size: 13px; margin-top: 2px; color: var(--muted); }
+  #tooltip .tt-count { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  #tooltip .tt-msgs { font-size: 11px; color: var(--muted); margin-top: 6px; border-top: 1px solid var(--border); padding-top: 6px; }
+  #tooltip .tt-msg-line { margin-top: 3px; }
+  #tooltip .tt-author { color: var(--accent2); }
+
+  /* MAP OVERLAYS */
+  #reset-zoom {
+    position: absolute; top: 10px; left: 12px;
+    font-size: 11px; padding: 4px 10px;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  #reset-zoom.visible { opacity: 1; pointer-events: auto; }
+  #zoom-hint {
+    position: absolute; top: 10px; right: 12px;
+    font-size: 10px; color: var(--muted);
+    background: rgba(17,24,39,0.7); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 10px; pointer-events: none;
+  }
+  #legend {
+    position: absolute; bottom: 10px; right: 12px;
+    display: flex; flex-direction: column; gap: 3px;
+    background: rgba(17,24,39,0.85); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; pointer-events: none;
+  }
+  #legend-title { font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .legend-icon { font-size: 13px; width: 18px; text-align: center; }
+
+  /* LOCATION PANEL — left sidebar */
+  #loc-panel {
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    background: var(--surface); overflow: hidden;
+    min-height: 0;
+  }
+  #loc-header {
+    padding: 8px 12px; font-size: 9px; color: var(--muted);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  #loc-feed {
+    flex: 1; overflow-y: auto; padding: 4px 0;
+    scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+  }
+  #loc-feed::-webkit-scrollbar { width: 3px; }
+  #loc-feed::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .loc-msg {
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    grid-template-rows: auto auto;
+    gap: 0 6px;
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    cursor: default;
+  }
+  .loc-msg:hover { background: rgba(96,165,250,0.07); }
+  .loc-icon { font-size: 13px; grid-row: 1 / 3; align-self: center; }
+  .loc-author {
+    color: var(--accent2); font-size: 11px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .loc-place {
+    color: var(--text); font-size: 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* CONTROLS */
+  #controls {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 16px; border-top: 1px solid var(--border); background: var(--bg);
+  }
+  #controls label { font-size: 11px; color: var(--muted); white-space: nowrap; letter-spacing: 0.05em; }
+  #video-input {
+    flex: 1; background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 6px 10px;
+    font-family: var(--mono); font-size: 12px; color: var(--text);
+    outline: none; transition: border-color 0.2s;
+  }
+  #video-input:focus { border-color: var(--accent2); }
+  #video-input::placeholder { color: var(--muted); }
+  button {
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 6px 14px;
+    font-family: var(--mono); font-size: 11px; color: var(--text);
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: var(--surface); border-color: var(--accent2); color: var(--accent2); }
+  #connect-btn { border-color: rgba(74,222,128,0.4); color: var(--accent); }
+  #connect-btn:hover { background: rgba(74,222,128,0.1); border-color: var(--accent); }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div id="header-left">
+      <div id="live-pill" class="idle">
+        <div id="live-pulse"></div>
+        <span id="live-label">DEMO</span>
+      </div>
+      <div id="app-title">LeafLoka <span>/ live viewer locations</span></div>
+    </div>
+    <div id="header-right">
+      <div id="location-count"><strong id="loc-num">0</strong> cities</div>
+    </div>
+  </div>
+
+  <div id="body">
+  <div id="loc-panel">
+    <div id="loc-header">Locations</div>
+    <div id="loc-feed"></div>
+  </div>
+
+  <div id="map-wrap">
+    <svg id="world-svg" viewBox="0 8 960 472" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+      <defs><clipPath id="map-clip"><rect x="0" y="8" width="960" height="472"/></clipPath></defs>
+      <g id="zoom-group" clip-path="url(#map-clip)">
+        <g id="graticule-layer"></g>
+        <g id="land-layer"></g>
+        <g id="dots-layer"></g>
+      </g>
+    </svg>
+    <div id="tooltip"></div>
+    <button id="reset-zoom" onclick="resetZoom()">↺ Reset view</button>
+    <div id="zoom-hint">Scroll to zoom · Drag to pan</div>
+    <div id="legend">
+      <div id="legend-title">Weather</div>
+      <div class="legend-row"><span class="legend-icon">☀️</span> sunny</div>
+      <div class="legend-row"><span class="legend-icon">🌧️</span> rainy</div>
+      <div class="legend-row"><span class="legend-icon">☁️</span> cloudy</div>
+      <div class="legend-row"><span class="legend-icon">❄️</span> snowy / cold</div>
+      <div class="legend-row"><span class="legend-icon">🌡️</span> hot</div>
+      <div class="legend-row"><span class="legend-icon">💨</span> windy</div>
+      <div class="legend-row"><span class="legend-icon">🌫️</span> foggy</div>
+      <div class="legend-row"><span class="legend-icon">⛈️</span> stormy</div>
+      <div class="legend-row"><span class="legend-icon">📍</span> no weather</div>
+    </div>
+  </div>
+  </div><!-- #body -->
+
+  <div id="controls">
+    <label>VIDEO ID:</label>
+    <input id="video-input" placeholder="Paste a YouTube video ID or URL" />
+    <button id="connect-btn" onclick="connectToStream()">▶ Connect</button>
+    <button onclick="clearMap()">Clear</button>
+    <button onclick="startDemo()">Demo</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// Weather icons — keyed to canonical weather values returned by Claude
+const WEATHER_ICONS = {
+  sunny:'☀️', rainy:'🌧️', cloudy:'☁️', snowy:'❄️', cold:'🥶',
+  hot:'🌡️', humid:'💧', windy:'💨', foggy:'🌫️', stormy:'⛈️',
+  misty:'🌫️', warm:'🌤️', cool:'🌬️', clear:'🌞', default:'📍'
+};
+
+// ── D3 setup ───────────────────────────────────────────────────
+const W = 960, H = 500;
+const svg = d3.select('#world-svg');
+const zoomGroup = svg.select('#zoom-group');
+const projection = d3.geoNaturalEarth1().scale(195).translate([W/2, H/2 + 70]);
+const pathGen = d3.geoPath().projection(projection);
+
+let currentTransform = d3.zoomIdentity;
+const DOT_R = 10; // constant screen-space radius in px
+
+const zoom = d3.zoom()
+  .scaleExtent([1, 50])
+  .on('zoom', (event) => {
+    currentTransform = event.transform;
+    zoomGroup.attr('transform', currentTransform);
+    rescaleAllDots();
+    const isDefault = currentTransform.k === 1 && currentTransform.x === 0 && currentTransform.y === 0;
+    document.getElementById('reset-zoom').classList.toggle('visible', !isDefault);
+  });
+
+svg.call(zoom);
+
+function resetZoom() {
+  svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+}
+
+// Graticule
+svg.select('#graticule-layer').append('path')
+  .datum(d3.geoGraticule()()).attr('d', pathGen).attr('class', 'graticule');
+
+// Land
+fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+  .then(r => r.json())
+  .then(world => {
+    svg.select('#land-layer').selectAll('path')
+      .data(topojson.feature(world, world.objects.countries).features)
+      .enter().append('path').attr('d', pathGen).attr('class', 'land');
+  });
+
+// ── State ──────────────────────────────────────────────────────
+const locations = new Map();
+let uid = 0;
+
+// ── Dot sizing helpers ─────────────────────────────────────────
+// All sizes are in SVG units; divide by k to get constant screen size
+function svgR()    { return DOT_R / currentTransform.k; }
+function svgFont() { return (DOT_R * 1.4) / currentTransform.k; }
+function svgBadgeFont() { return 11 / currentTransform.k; }
+function svgBadgeOffset() { return (DOT_R * 0.7) / currentTransform.k; }
+function svgStroke() { return 1.5 / currentTransform.k; }
+
+function rescaleAllDots() {
+  svg.selectAll('.dot-group').each(function() {
+    const g = d3.select(this);
+    g.select('circle').attr('r', svgR()).attr('stroke-width', svgStroke());
+    g.select('.dot-emoji').attr('font-size', svgFont());
+    g.select('.count-badge')
+      .attr('font-size', svgBadgeFont())
+      .attr('x', svgBadgeOffset())
+      .attr('y', -svgBadgeOffset());
+  });
+}
+
+// ── Render / update a single dot ──────────────────────────────
+function renderDot(key) {
+  const loc = locations.get(key);
+  const [cx, cy] = projection([loc.lon, loc.lat]);
+  if (isNaN(cx) || isNaN(cy)) return;
+
+  const icon = WEATHER_ICONS[loc.weather] || WEATHER_ICONS.default;
+  const id = `dot-${loc.id}`;
+  let g = svg.select('#dots-layer').select(`#${id}`);
+
+  if (g.empty()) {
+    g = svg.select('#dots-layer').append('g')
+      .attr('id', id).attr('class', 'dot-group')
+      .attr('transform', `translate(${cx},${cy})`);
+
+    g.append('circle')
+      .attr('r', 0)
+      .attr('fill', '#4ade80').attr('fill-opacity', 0.2)
+      .attr('stroke', '#4ade80').attr('stroke-width', svgStroke()).attr('stroke-opacity', 0.9)
+      .transition().duration(500).attr('r', svgR());
+
+    g.append('text')
+      .attr('class', 'dot-emoji')
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+      .attr('font-size', svgFont()).text(icon);
+
+    g.on('mouseenter', (event) => showTooltip(event, key))
+     .on('mousemove', moveTooltip)
+     .on('mouseleave', hideTooltip);
+  }
+
+  // Refresh count badge
+  g.select('.count-badge').remove();
+  if (loc.count > 1) {
+    g.append('text')
+      .attr('class', 'count-badge')
+      .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+      .attr('font-size', svgBadgeFont())
+      .attr('x', svgBadgeOffset()).attr('y', -svgBadgeOffset())
+      .attr('fill', 'white')
+      .text(loc.count);
+  }
+}
+
+// ── Tooltip ────────────────────────────────────────────────────
+const ttEl = document.getElementById('tooltip');
+
+function showTooltip(event, key) {
+  const loc = locations.get(key);
+  const icon = WEATHER_ICONS[loc.weather] || WEATHER_ICONS.default;
+  const msgs = loc.messages.slice(-3)
+    .map(m => `<div class="tt-msg-line"><span class="tt-author">${esc(m.author)}:</span> ${esc(m.text)}</div>`)
+    .join('');
+  ttEl.innerHTML = `
+    <div class="tt-place">${icon} ${esc(loc.place)}</div>
+    ${loc.weather ? `<div class="tt-weather">${loc.weather}</div>` : ''}
+    <div class="tt-count">${loc.count} viewer${loc.count > 1 ? 's' : ''}</div>
+    <div class="tt-msgs">${msgs}</div>`;
+  ttEl.style.display = 'block';
+  moveTooltip(event);
+}
+function moveTooltip(event) {
+  const rect = document.getElementById('map-wrap').getBoundingClientRect();
+  let x = event.clientX - rect.left + 14;
+  let y = event.clientY - rect.top - 10;
+  if (x + 250 > rect.width) x -= 264;
+  if (y < 0) y = 4;
+  ttEl.style.left = x + 'px'; ttEl.style.top = y + 'px';
+}
+function hideTooltip() { ttEl.style.display = 'none'; }
+
+// ── Geocode ────────────────────────────────────────────────────
+const geocodeCache = new Map();
+
+async function geocode(place) {
+  const key = place.toLowerCase().trim();
+  if (DEMO_COORDS[key]) return DEMO_COORDS[key];
+  if (geocodeCache.has(key)) return geocodeCache.get(key);
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place)}&format=json&limit=1`,
+      { headers: { 'Accept-Language': 'en', 'User-Agent': 'LeafLoka/1.0' }}
+    );
+    const d = await r.json();
+    if (d && d[0]) {
+      const result = { lat: +d[0].lat, lon: +d[0].lon };
+      geocodeCache.set(key, result);
+      return result;
+    }
+  } catch(e) {}
+  return null;
+}
+
+// ── Add location entry ─────────────────────────────────────────
+async function addLocation(author, text, place, weather, place_mention, weather_mention) {
+  const key = place.toLowerCase().trim();
+  if (locations.has(key)) {
+    const loc = locations.get(key);
+    loc.count++;
+    loc.messages.push({ author, text });
+    renderDot(key);
+  } else {
+    const geo = await geocode(place);
+    if (!geo) return;
+    locations.set(key, { id: uid++, place, lat: geo.lat, lon: geo.lon, weather, count: 1, messages: [{ author, text }] });
+    renderDot(key);
+  }
+  document.getElementById('loc-num').textContent = locations.size;
+  addToFeed(author, text, place, weather, place_mention, weather_mention);
+}
+
+// ── Location-only feed ─────────────────────────────────────────
+function highlightMentions(text, place_mention, weather_mention) {
+  // Highlight the exact substrings Claude identified in the original message
+  let result = esc(text);
+  // Escape regex special chars in the mention strings
+  function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  if (weather_mention) {
+    result = result.replace(
+      new RegExp('(' + escRe(esc(weather_mention)) + ')', 'i'),
+      '<span class="hl-weather">$1</span>'
+    );
+  }
+  if (place_mention) {
+    result = result.replace(
+      new RegExp('(' + escRe(esc(place_mention)) + ')', 'i'),
+      '<span class="hl-place">$1</span>'
+    );
+  }
+  return result;
+}
+
+function addToFeed(author, text, place, weather, place_mention, weather_mention) {
+  const feed = document.getElementById('loc-feed');
+  const div = document.createElement('div');
+  div.className = 'loc-msg';
+  const icon = WEATHER_ICONS[weather] || WEATHER_ICONS.default;
+  // Compact two-line display: author on top, place (+ weather if present) below
+  const weatherStr = weather ? ` <span class="hl-weather">${esc(weather)}</span>` : '';
+  const placeStr = `<span class="hl-place">${esc(place)}</span>${weatherStr}`;
+  div.innerHTML = `<span class="loc-icon">${icon}</span><span class="loc-author">${esc(author)}</span><span class="loc-place">${placeStr}</span>`;
+  feed.appendChild(div);
+  const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
+  if (nearBottom) feed.scrollTop = feed.scrollHeight;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Clear ──────────────────────────────────────────────────────
+function clearMap() {
+  locations.clear(); uid = 0;
+  svg.select('#dots-layer').selectAll('*').remove();
+  document.getElementById('loc-feed').innerHTML = '';
+  document.getElementById('loc-num').textContent = '0';
+  resetZoom();
+}
+
+// ── SSE connection ─────────────────────────────────────────────
+let sse = null;
+function connectToStream() {
+  let val = document.getElementById('video-input').value.trim();
+  const m = val.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_\-]{11})/);
+  if (m) val = m[1];
+  if (!val || val.length < 5) { alert('Enter a valid YouTube video ID or URL'); return; }
+  if (sse) sse.close();
+  if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+  clearMap();
+
+  const backendUrl = window.BACKEND_URL || 'http://localhost:3001';
+  sse = new EventSource(`${backendUrl}/stream?videoId=${encodeURIComponent(val)}`);
+  sse.onopen = () => setLive('LIVE', true);
+  sse.onerror = () => setLive('IDLE', false);
+
+  sse.addEventListener('location', e => {
+    const d = JSON.parse(e.data);
+    addLocation(d.author, d.text, d.place, d.weather, d.place_mention, d.weather_mention);
+  });
+
+}
+
+function setLive(label, active) {
+  document.getElementById('live-pill').className = active ? '' : 'idle';
+  document.getElementById('live-label').textContent = label;
+}
+
+// ── Demo ───────────────────────────────────────────────────────
+// Uses real sangha chat messages with pre-extracted place/weather
+// (as Claude would return them) — no API calls needed for demo mode.
+const DEMO_EVENTS = [
+  { author:'reneenewman7492',   text:'Good morning from Ashland Or 🙏☮',                         place:'Ashland, Oregon',          weather:null,    place_mention:'Ashland Or',     weather_mention:null },
+  { author:'marykuntz-cote5192',text:'Joining from rainy Santa Cruz',                             place:'Santa Cruz, California',   weather:'rainy', place_mention:'Santa Cruz',     weather_mention:'rainy' },
+  { author:'juliedavison999',   text:'good morning from sunny Irvine ca',                         place:'Irvine, California',       weather:'sunny', place_mention:'Irvine ca',      weather_mention:'sunny' },
+  { author:'marykatep7042',     text:'Good morning from mid-Missouri~the land is chartreuse',     place:'Missouri',                 weather:null,    place_mention:'mid-Missouri',   weather_mention:null },
+  { author:'juliemorris6455',   text:'Strong winds here in N Ontario. Staying grounded.',         place:'Northern Ontario',         weather:'windy', place_mention:'N Ontario',      weather_mention:'winds' },
+  { author:'MonaStutes',        text:'Good morning from drippy Alaska.',                          place:'Alaska',                   weather:'rainy', place_mention:'Alaska',         weather_mention:'drippy' },
+  { author:'stewartbrown6897',  text:'Metta from cool sunny Scotland.',                           place:'Scotland',                 weather:'sunny', place_mention:'Scotland',       weather_mention:'sunny' },
+  { author:'JosephCurran-t9z',  text:'Greetings from San Francisco.',                            place:'San Francisco',            weather:null,    place_mention:'San Francisco',  weather_mention:null },
+  { author:'jclacoco',          text:'Good morning from Port Townsend, WA.',                     place:'Port Townsend, Washington', weather:null,   place_mention:'Port Townsend, WA', weather_mention:null },
+  { author:'Michele.3142',      text:'Good Morning from a cool, clear morning in S. Ca.',        place:'Southern California',      weather:'cold',  place_mention:'S. Ca.',         weather_mention:'cool' },
+  { author:'kathrynryan532',    text:'blessings from Carefree, AZ',                              place:'Carefree, Arizona',        weather:null,    place_mention:'Carefree, AZ',   weather_mention:null },
+  { author:'cindycrowe-urgo1018',text:'Grateful greetings from the redwoods in La Honda CA ❤',  place:'La Honda, California',     weather:null,    place_mention:'La Honda CA',    weather_mention:null },
+  { author:'davidwindahl1035',  text:'warm greetings all.. Jill and Dave in Tucson',             place:'Tucson',                   weather:null,    place_mention:'Tucson',         weather_mention:null },
+  { author:'CarolCoates-k9x',   text:'Good morning from rainy Carmel',                           place:'Carmel, California',       weather:'rainy', place_mention:'Carmel',         weather_mention:'rainy' },
+  { author:'tracyb.7224',       text:'Good morning from Seattle🙏😊❤',                           place:'Seattle',                  weather:null,    place_mention:'Seattle',        weather_mention:null },
+  { author:'zachdomer798',      text:'good morning from Portland Oregon 🌹🧡🙏☮',               place:'Portland, Oregon',         weather:null,    place_mention:'Portland Oregon', weather_mention:null },
+  { author:'barbararhine2716',  text:'coming to you from cool wet gray Oakland...',               place:'Oakland',                  weather:'cloudy',place_mention:'Oakland',        weather_mention:'gray' },
+  { author:'tw6570',            text:'Good morning Sangha from rainy San Mateo, California 🙏🏼', place:'San Mateo, California',   weather:'rainy', place_mention:'San Mateo, California', weather_mention:'rainy' },
+  { author:'jessicabrowne8758', text:'Good morning from windy sunny Ohio.',                       place:'Ohio',                     weather:'windy', place_mention:'Ohio',           weather_mention:'windy' },
+  { author:'amyskewes-cox3584', text:'warm greetings from mt tam fog outlining tops of redwood trees', place:'Mount Tamalpais, California', weather:'foggy', place_mention:'mt tam', weather_mention:'fog' },
+  { author:'lelac4410',         text:'The most beautiful misty morning here in Santa Cruz.',     place:'Santa Cruz, California',   weather:'foggy', place_mention:'Santa Cruz',     weather_mention:'misty' },
+  { author:'slothbear2',        text:'warm greetings great blue leaflet sangha from Watertown MA', place:'Watertown, Massachusetts', weather:null,  place_mention:'Watertown MA',   weather_mention:null },
+  { author:'cynthiadiamond5942',text:'greetings from Santa fe',                                  place:'Santa Fe',                 weather:null,    place_mention:'Santa fe',       weather_mention:null },
+  { author:'kimhoag1107',       text:'Good morning from Tofino, BC',                             place:'Tofino, British Columbia', weather:null,    place_mention:'Tofino, BC',     weather_mention:null },
+  { author:'claudiachang8899',  text:'Good morning from Syracuse, NY',                           place:'Syracuse, New York',       weather:null,    place_mention:'Syracuse, NY',   weather_mention:null },
+];
+
+let demoTimer = null, demoIdx = 0;
+
+function startDemo() {
+  if (sse) { sse.close(); sse = null; }
+  if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+  clearMap(); demoIdx = 0;
+  setLive('DEMO', true);
+  function step() {
+    if (demoIdx >= DEMO_EVENTS.length) {
+      clearInterval(demoTimer); demoTimer = null; setLive('IDLE', false); return;
+    }
+    const { author, text, place, weather, place_mention, weather_mention } = DEMO_EVENTS[demoIdx++];
+    addLocation(author, text, place, weather, place_mention, weather_mention);
+  }
+  step();
+  demoTimer = setInterval(step, 1400);
+}
+
+const DEMO_COORDS = {
+  'santa cruz, california':{'lat':36.974,'lon':-122.030},
+  'ashland, oregon':{'lat':42.194,'lon':-122.709},
+  'irvine, california':{'lat':33.684,'lon':-117.826},
+  'missouri':{'lat':38.573,'lon':-92.603},
+  'northern ontario':{'lat':49.500,'lon':-84.000},
+  'alaska':{'lat':64.200,'lon':-153.000},
+  'scotland':{'lat':56.490,'lon':-4.202},
+  'san francisco':{'lat':37.774,'lon':-122.419},
+  'port townsend, washington':{'lat':48.117,'lon':-122.760},
+  'southern california':{'lat':34.052,'lon':-118.244},
+  'carefree, arizona':{'lat':33.823,'lon':-111.919},
+  'la honda, california':{'lat':37.319,'lon':-122.272},
+  'tucson':{'lat':32.222,'lon':-110.970},
+  'carmel, california':{'lat':36.556,'lon':-121.923},
+  'seattle':{'lat':47.606,'lon':-122.332},
+  'portland, oregon':{'lat':45.523,'lon':-122.676},
+  'san mateo, california':{'lat':37.563,'lon':-122.325},
+  'ohio':{'lat':40.417,'lon':-82.907},
+  'mount tamalpais, california':{'lat':37.897,'lon':-122.571},
+  'watertown, massachusetts':{'lat':42.366,'lon':-71.183},
+  'santa fe':{'lat':35.687,'lon':-105.938},
+  'tofino, british columbia':{'lat':49.153,'lon':-125.907},
+  'syracuse, new york':{'lat':43.048,'lon':-76.147},
+  'oakland':{'lat':37.804,'lon':-122.271},
+  'sydney':{'lat':-33.868,'lon':151.209},
+  'toronto':{'lat':43.651,'lon':-79.347},
+  'miami':{'lat':25.774,'lon':-80.193},
+  'denver':{'lat':39.742,'lon':-104.987},
+  'london':{'lat':51.507,'lon':-0.127},
+  'paris':{'lat':48.856,'lon':2.352},
+  'cape town':{'lat':-33.924,'lon':18.424},
+  'stockholm':{'lat':59.332,'lon':18.064},
+  'austin tx':{'lat':30.267,'lon':-97.743},
+  'austin':{'lat':30.267,'lon':-97.743},
+  'mexico city':{'lat':19.432,'lon':-99.133},
+  'auckland':{'lat':-36.846,'lon':174.763},
+  'berlin':{'lat':52.520,'lon':13.404},
+  'dubai':{'lat':25.204,'lon':55.270},
+  'mumbai':{'lat':19.075,'lon':72.877},
+  'vancouver':{'lat':49.246,'lon':-123.116},
+  'cairo':{'lat':30.044,'lon':31.235},
+  'tokyo':{'lat':35.689,'lon':139.691},
+  'buenos aires':{'lat':-34.603,'lon':-58.381},
+  'singapore':{'lat':1.352,'lon':103.819},
+  'nairobi':{'lat':-1.292,'lon':36.821},
+  'moscow':{'lat':55.755,'lon':37.617},
+  'bangkok':{'lat':13.756,'lon':100.501},
+  'santiago':{'lat':-33.456,'lon':-70.648},
+  'manchester':{'lat':53.480,'lon':-2.242},
+};
+
+startDemo();
+</script>
+</body>
+</html>
