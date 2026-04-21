@@ -27,3 +27,4 @@ done
 rm -rf ~/Downloads/ytchatmap && echo "  🗑  ~/Downloads/ytchatmap removed"
 echo "Done. Restart your server to pick up the changes."
 
+npm run dev

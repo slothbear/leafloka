@@ -106,7 +106,25 @@
     background: rgba(17,24,39,0.7); border: 1px solid var(--border);
     border-radius: 6px; padding: 4px 10px; pointer-events: none;
   }
+  /* MAP OPTIONS CHECKBOXES */
+  #map-options {
+    position: absolute; bottom: 10px; left: 12px;
+    display: flex; flex-direction: column; gap: 4px;
+    pointer-events: auto;
+  }
+  .opt-row {
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11px; color: var(--muted);
+    cursor: pointer; user-select: none;
+  }
+  .opt-row:hover { color: var(--text); }
+  .opt-row input[type=checkbox] {
+    accent-color: var(--accent);
+    width: 12px; height: 12px; cursor: pointer; flex-shrink: 0;
+  }
+
   #legend {
+    position: absolute; bottom: 10px; left: 12px;
     position: absolute; bottom: 10px; left: 12px;
     display: flex; flex-direction: column; gap: 3px;
     background: rgba(17,24,39,0.85); border: 1px solid var(--border);
@@ -203,8 +221,8 @@
   </div>
 
   <div id="map-wrap">
-    <svg id="world-svg" viewBox="0 8 960 472" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
-      <defs><clipPath id="map-clip"><rect x="0" y="8" width="960" height="472"/></clipPath></defs>
+    <svg id="world-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs><clipPath id="map-clip"><rect id="clip-rect" x="0" y="0" width="100%" height="100%"/></clipPath></defs>
       <g id="zoom-group" clip-path="url(#map-clip)">
         <g id="graticule-layer"></g>
         <g id="land-layer"></g>
@@ -214,7 +232,12 @@
     <div id="tooltip"></div>
     <button id="reset-zoom" onclick="resetZoom()">↺ Reset view</button>
     <div id="zoom-hint">Scroll to zoom · Drag to pan</div>
-    <div id="legend">
+    <div id="map-options">
+      <div id="map-options-boxes">
+        <label class="opt-row"><input type="checkbox" id="opt-circles" checked> Show circles</label>
+        <label class="opt-row"><input type="checkbox" id="opt-autozoom" checked> Auto-zoom to fit dots</label>
+      </div>
+      <div id="legend">
       <div id="legend-title">Weather</div>
       <div class="legend-row"><span class="legend-icon">☀️</span> sunny</div>
       <div class="legend-row"><span class="legend-icon">🌧️</span> rainy</div>
@@ -225,7 +248,8 @@
       <div class="legend-row"><span class="legend-icon">🌫️</span> foggy</div>
       <div class="legend-row"><span class="legend-icon">⛈️</span> stormy</div>
       <div class="legend-row"><span class="legend-icon">📍</span> no weather</div>
-    </div>
+    </div><!-- #legend -->
+    </div><!-- #map-options -->
   </div>
   </div><!-- #body -->
 
@@ -249,14 +273,30 @@ const WEATHER_ICONS = {
 };
 
 // ── D3 setup ───────────────────────────────────────────────────
-const W = 960, H = 500;
-const svg = d3.select('#world-svg');
+const svgEl = document.getElementById('world-svg');
+const mapWrap = document.getElementById('map-wrap');
+const svg = d3.select(svgEl);
 const zoomGroup = svg.select('#zoom-group');
-const projection = d3.geoNaturalEarth1().scale(210).translate([W/2, H/2 + 90]);
-const pathGen = d3.geoPath().projection(projection);
+
+// World bounds excluding Antarctica (lat capped at -57)
+const WORLD_BOUNDS = { type: 'Feature', geometry: {
+  type: 'Polygon',
+  coordinates: [[[-179.9,83],[179.9,83],[179.9,-57],[-179.9,-57],[-179.9,83]]]
+}};
+
+function makeProjection(W, H) {
+  // Small padding (2px each side) so coastlines aren't clipped
+  return d3.geoNaturalEarth1()
+    .fitExtent([[2, 2], [W - 2, H - 2]], WORLD_BOUNDS);
+}
+
+// W/H will be set properly once the container is measured
+let W = 0, H = 0;
+let projection = d3.geoNaturalEarth1(); // placeholder until init
+let pathGen = d3.geoPath().projection(projection);
 
 let currentTransform = d3.zoomIdentity;
-const DOT_R = 10; // constant screen-space radius in px
+const DOT_R = 10;
 
 const zoom = d3.zoom()
   .scaleExtent([1, 50])
@@ -274,9 +314,42 @@ function resetZoom() {
   svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
 }
 
-// Graticule
+function redraw() {
+  const newW = mapWrap.clientWidth;
+  const newH = mapWrap.clientHeight;
+  if (newW === 0 || newH === 0) return; // not ready yet
+  W = newW; H = newH;
+
+  // Update SVG size explicitly so it matches its container
+  svgEl.setAttribute('width', W);
+  svgEl.setAttribute('height', H);
+
+  projection = makeProjection(W, H);
+  pathGen = d3.geoPath().projection(projection);
+
+  svg.select('#graticule-layer').selectAll('path').attr('d', pathGen);
+  svg.select('#land-layer').selectAll('path').attr('d', pathGen);
+
+  // Reposition all dots
+  svg.selectAll('.dot-group').each(function() {
+    const g = d3.select(this);
+    const key = g.attr('data-key');
+    if (!key || !locations.has(key)) return;
+    const loc = locations.get(key);
+    const [cx, cy] = projection([loc.lon, loc.lat]);
+    g.attr('transform', `translate(${cx},${cy})`);
+  });
+  resetZoom();
+}
+
+// Use ResizeObserver so we redraw as soon as the container has real dimensions
+const ro = new ResizeObserver(() => redraw());
+ro.observe(mapWrap);
+window.addEventListener('resize', redraw);
+
+// Graticule — append once, redraw() will update 'd' attribute
 svg.select('#graticule-layer').append('path')
-  .datum(d3.geoGraticule()()).attr('d', pathGen).attr('class', 'graticule');
+  .datum(d3.geoGraticule()()).attr('class', 'graticule');
 
 // Land
 fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
@@ -324,12 +397,15 @@ function renderDot(key) {
   if (g.empty()) {
     g = svg.select('#dots-layer').append('g')
       .attr('id', id).attr('class', 'dot-group')
+      .attr('data-key', key)
       .attr('transform', `translate(${cx},${cy})`);
 
+    const showCircle = document.getElementById('opt-circles').checked;
     g.append('circle')
       .attr('r', 0)
-      .attr('fill', '#4ade80').attr('fill-opacity', 0.2)
-      .attr('stroke', '#4ade80').attr('stroke-width', svgStroke()).attr('stroke-opacity', 0.9)
+      .attr('fill', '#4ade80').attr('fill-opacity', showCircle ? 0.2 : 0)
+      .attr('stroke', '#4ade80').attr('stroke-width', svgStroke())
+      .attr('stroke-opacity', showCircle ? 0.9 : 0)
       .transition().duration(500).attr('r', svgR());
 
     g.append('text')
@@ -419,6 +495,7 @@ async function addLocation(author, text, place, weather, place_mention, weather_
     renderDot(key);
   }
   document.getElementById('loc-num').textContent = locations.size;
+  autoZoomToFitDots();
   addToFeed(author, text, place, weather, place_mention, weather_mention);
 }
 
@@ -455,6 +532,44 @@ function addToFeed(author, text, place, weather, place_mention, weather_mention)
   feed.appendChild(div);
   const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
   if (nearBottom) feed.scrollTop = feed.scrollHeight;
+}
+
+// ── Option: circle toggle ─────────────────────────────────────
+function applyCircleToggle() {
+  const show = document.getElementById('opt-circles').checked;
+  svg.selectAll('.dot-group circle')
+    .attr('fill-opacity', show ? 0.2 : 0)
+    .attr('stroke-opacity', show ? 0.9 : 0);
+}
+document.getElementById('opt-circles').addEventListener('change', applyCircleToggle);
+
+// ── Option: auto-zoom to fit all dots ─────────────────────────
+function autoZoomToFitDots() {
+  if (!document.getElementById('opt-autozoom').checked) return;
+  if (locations.size === 0) return;
+
+  // Collect all projected coordinates
+  const points = [];
+  for (const loc of locations.values()) {
+    const [x, y] = projection([loc.lon, loc.lat]);
+    if (!isNaN(x) && !isNaN(y)) points.push([x, y]);
+  }
+  if (points.length === 0) return;
+
+  // Compute bounding box with padding
+  const PAD = 60;
+  const xs = points.map(p => p[0]);
+  const ys = points.map(p => p[1]);
+  const x0 = Math.min(...xs) - PAD, x1 = Math.max(...xs) + PAD;
+  const y0 = Math.min(...ys) - PAD, y1 = Math.max(...ys) + PAD;
+
+  const bW = x1 - x0, bH = y1 - y0;
+  const scale = Math.min(W / bW, H / bH, 50); // cap at max zoom
+  const tx = W / 2 - scale * (x0 + bW / 2);
+  const ty = H / 2 - scale * (y0 + bH / 2);
+
+  svg.transition().duration(700)
+    .call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
 }
 
 function esc(s) {
