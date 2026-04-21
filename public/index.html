@@ -79,6 +79,16 @@
   .graticule { fill: none; stroke: rgba(255,255,255,0.03); stroke-width: 0.5; }
   .dot-group { cursor: pointer; }
 
+  /* FEED TOOLTIP — appears to the right of the sidebar */
+  #feed-tooltip {
+    position: fixed; pointer-events: none; display: none;
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 8px; padding: 8px 12px;
+    font-size: 12px; line-height: 1.5; max-width: 260px; z-index: 100;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    color: var(--text);
+  }
+
   /* TOOLTIP */
   #tooltip {
     position: absolute; pointer-events: none; display: none;
@@ -249,7 +259,8 @@
       </g>
     </svg>
     <div id="tooltip"></div>
-    <button id="reset-zoom" onclick="resetZoom()">↺ one world</button>
+    <div id="feed-tooltip"></div>
+    <button id="reset-zoom" onclick="resetZoom()">↺ One world</button>
     <div id="zoom-hint">Scroll to zoom · Drag to pan</div>
 
   </div>
@@ -531,9 +542,43 @@ function addToFeed(author, text, place, weather, place_mention, weather_mention)
   const weatherStr = weather ? ` <span class="hl-weather">${esc(weather)}</span>` : '';
   const placeStr = `<span class="hl-place">${esc(place)}</span>${weatherStr}`;
   div.innerHTML = `<span class="loc-icon">${icon}</span><span class="loc-author">${esc(author)}</span><span class="loc-place">${placeStr}</span>`;
+  div.dataset.msg = text;
+  div.addEventListener('mouseenter', showFeedTooltip);
+  div.addEventListener('mouseleave', hideFeedTooltip);
   feed.appendChild(div);
   const nearBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
   if (nearBottom) feed.scrollTop = feed.scrollHeight;
+}
+
+// ── Feed tooltip ──────────────────────────────────────────────
+const feedTtEl = document.getElementById('feed-tooltip');
+
+function showFeedTooltip(event) {
+  const text = event.currentTarget.dataset.msg;
+  if (!text) return;
+  feedTtEl.textContent = text;
+  feedTtEl.style.display = 'block';
+  positionFeedTooltip(event);
+}
+function hideFeedTooltip() {
+  feedTtEl.style.display = 'none';
+}
+// Update position on mousemove too for smooth tracking
+document.getElementById('loc-feed').addEventListener('mousemove', (event) => {
+  if (feedTtEl.style.display === 'block') positionFeedTooltip(event);
+});
+function positionFeedTooltip(event) {
+  const panel = document.getElementById('loc-panel');
+  const pr = panel.getBoundingClientRect();
+  // Appear to the right of the sidebar
+  let x = pr.right + 8;
+  let y = event.clientY - 10;
+  // Keep within viewport
+  const vw = window.innerWidth, vh = window.innerHeight;
+  if (x + 270 > vw) x = pr.left - 278;
+  if (y + 80 > vh) y = vh - 88;
+  feedTtEl.style.left = x + 'px';
+  feedTtEl.style.top = y + 'px';
 }
 
 // ── Option: circle toggle ─────────────────────────────────────
