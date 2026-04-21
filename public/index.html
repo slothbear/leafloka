@@ -36,6 +36,7 @@
     grid-template-columns: 200px 1fr;
     overflow: hidden;
     min-height: 0;
+    position: relative;
   }
 
   /* HEADER */
@@ -106,11 +107,20 @@
     background: rgba(17,24,39,0.7); border: 1px solid var(--border);
     border-radius: 6px; padding: 4px 10px; pointer-events: none;
   }
-  /* MAP OPTIONS CHECKBOXES */
+  /* MAP OPTIONS + LEGEND — single unified box, bottom-left */
   #map-options {
-    position: absolute; bottom: 10px; left: 12px;
-    display: flex; flex-direction: column; gap: 4px;
+    position: absolute; bottom: 10px; left: 212px;
+    display: flex; flex-direction: column; gap: 0;
+    background: rgba(17,24,39,0.85); border: 1px solid var(--border);
+    border-radius: 8px;
     pointer-events: auto;
+    max-height: calc(100% - 20px);
+    overflow-y: auto;
+  }
+  #map-options-boxes {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border);
   }
   .opt-row {
     display: flex; align-items: center; gap: 7px;
@@ -124,7 +134,7 @@
   }
 
   #legend {
-    position: absolute; bottom: 10px; left: 12px;
+    /* no position — flows inside #map-options */
     position: absolute; bottom: 10px; left: 12px;
     display: flex; flex-direction: column; gap: 3px;
     background: rgba(17,24,39,0.85); border: 1px solid var(--border);
@@ -230,14 +240,12 @@
       </g>
     </svg>
     <div id="tooltip"></div>
-    <button id="reset-zoom" onclick="resetZoom()">↺ Reset view</button>
+    <button id="reset-zoom" onclick="resetZoom()">↺ One world</button>
     <div id="zoom-hint">Scroll to zoom · Drag to pan</div>
-    <div id="map-options">
-      <div id="map-options-boxes">
-        <label class="opt-row"><input type="checkbox" id="opt-circles" checked> Show circles</label>
-        <label class="opt-row"><input type="checkbox" id="opt-autozoom" checked> Auto-zoom to fit dots</label>
-      </div>
-      <div id="legend">
+
+  </div>
+  <div id="map-options">
+    <div id="legend">
       <div id="legend-title">Weather</div>
       <div class="legend-row"><span class="legend-icon">☀️</span> sunny</div>
       <div class="legend-row"><span class="legend-icon">🌧️</span> rainy</div>
@@ -249,8 +257,11 @@
       <div class="legend-row"><span class="legend-icon">⛈️</span> stormy</div>
       <div class="legend-row"><span class="legend-icon">📍</span> no weather</div>
     </div><!-- #legend -->
-    </div><!-- #map-options -->
-  </div>
+    <div id="map-options-boxes">
+      <label class="opt-row"><input type="checkbox" id="opt-circles" checked> Show circles</label>
+      <label class="opt-row"><input type="checkbox" id="opt-autozoom" checked> Auto-zoom to fit dots</label>
+    </div>
+  </div><!-- #map-options -->
   </div><!-- #body -->
 
   <div id="controls">
