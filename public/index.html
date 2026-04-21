@@ -319,6 +319,11 @@ const zoom = d3.zoom()
     rescaleAllDots();
     const isDefault = currentTransform.k === 1 && currentTransform.x === 0 && currentTransform.y === 0;
     document.getElementById('reset-zoom').classList.toggle('visible', !isDefault);
+    // If the user initiated this zoom/pan, turn off auto-zoom
+    if (event.sourceEvent) {
+      const cb = document.getElementById('opt-autozoom');
+      if (cb.checked) cb.checked = false;
+    }
   });
 
 svg.call(zoom);
