@@ -648,7 +648,7 @@ function connectToStream() {
   if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
   clearMap();
 
-  const backendUrl = window.BACKEND_URL || 'http://localhost:3001';
+  const backendUrl = window.BACKEND_URL || '';
   sse = new EventSource(`${backendUrl}/stream?videoId=${encodeURIComponent(val)}`);
   sse.onopen = () => setLive('LIVE', true);
   sse.onerror = () => setLive('IDLE', false);
