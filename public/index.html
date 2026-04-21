@@ -107,21 +107,26 @@
     background: rgba(17,24,39,0.7); border: 1px solid var(--border);
     border-radius: 6px; padding: 4px 10px; pointer-events: none;
   }
-  /* MAP OPTIONS + LEGEND — single unified box, bottom-left */
-  #map-options {
-    position: absolute; bottom: 10px; left: 212px;
-    display: flex; flex-direction: column; gap: 0;
-    background: rgba(17,24,39,0.85); border: 1px solid var(--border);
-    border-radius: 8px;
-    pointer-events: auto;
-    max-height: calc(100% - 20px);
-    overflow-y: auto;
-  }
-  #map-options-boxes {
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 8px 12px;
+  
+  #legend-title { font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  .legend-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .legend-icon { font-size: 13px; width: 18px; text-align: center; }
+
+  /* OPTIONS + LEGEND in sidebar */
+  #loc-options {
+    flex-shrink: 0;
     border-top: 1px solid var(--border);
+    padding: 8px 10px;
+    display: flex; flex-direction: column; gap: 3px;
   }
+  .opt-section-title {
+    font-size: 9px; color: var(--muted);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 3px; margin-top: 2px;
+  }
+  .opt-divider { height: 1px; background: var(--border); margin: 5px 0; }
+  .legend-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .legend-icon { font-size: 12px; width: 16px; text-align: center; }
   .opt-row {
     display: flex; align-items: center; gap: 7px;
     font-size: 11px; color: var(--muted);
@@ -132,17 +137,6 @@
     accent-color: var(--accent);
     width: 12px; height: 12px; cursor: pointer; flex-shrink: 0;
   }
-
-  #legend {
-    /* no position — flows inside #map-options */
-    position: absolute; bottom: 10px; left: 12px;
-    display: flex; flex-direction: column; gap: 3px;
-    background: rgba(17,24,39,0.85); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 12px; pointer-events: none;
-  }
-  #legend-title { font-size: 9px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
-  .legend-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
-  .legend-icon { font-size: 13px; width: 18px; text-align: center; }
 
   /* LOCATION PANEL — left sidebar */
   #loc-panel {
@@ -228,6 +222,21 @@
   <div id="loc-panel">
     <div id="loc-header">Locations</div>
     <div id="loc-feed"></div>
+    <div id="loc-options">
+      <div class="opt-section-title">Weather</div>
+      <div class="legend-row"><span class="legend-icon">☀️</span> sunny</div>
+      <div class="legend-row"><span class="legend-icon">🌧️</span> rainy</div>
+      <div class="legend-row"><span class="legend-icon">☁️</span> cloudy</div>
+      <div class="legend-row"><span class="legend-icon">❄️</span> snowy / cold</div>
+      <div class="legend-row"><span class="legend-icon">🌡️</span> hot</div>
+      <div class="legend-row"><span class="legend-icon">💨</span> windy</div>
+      <div class="legend-row"><span class="legend-icon">🌫️</span> foggy</div>
+      <div class="legend-row"><span class="legend-icon">⛈️</span> stormy</div>
+      <div class="legend-row"><span class="legend-icon">📍</span> no weather</div>
+      <div class="opt-divider"></div>
+      <label class="opt-row"><input type="checkbox" id="opt-circles" checked> Show circles</label>
+      <label class="opt-row"><input type="checkbox" id="opt-autozoom" checked> Auto-zoom to fit dots</label>
+    </div>
   </div>
 
   <div id="map-wrap">
@@ -244,24 +253,6 @@
     <div id="zoom-hint">Scroll to zoom · Drag to pan</div>
 
   </div>
-  <div id="map-options">
-    <div id="legend">
-      <div id="legend-title">Weather</div>
-      <div class="legend-row"><span class="legend-icon">☀️</span> sunny</div>
-      <div class="legend-row"><span class="legend-icon">🌧️</span> rainy</div>
-      <div class="legend-row"><span class="legend-icon">☁️</span> cloudy</div>
-      <div class="legend-row"><span class="legend-icon">❄️</span> snowy / cold</div>
-      <div class="legend-row"><span class="legend-icon">🌡️</span> hot</div>
-      <div class="legend-row"><span class="legend-icon">💨</span> windy</div>
-      <div class="legend-row"><span class="legend-icon">🌫️</span> foggy</div>
-      <div class="legend-row"><span class="legend-icon">⛈️</span> stormy</div>
-      <div class="legend-row"><span class="legend-icon">📍</span> no weather</div>
-    </div><!-- #legend -->
-    <div id="map-options-boxes">
-      <label class="opt-row"><input type="checkbox" id="opt-circles" checked> Show circles</label>
-      <label class="opt-row"><input type="checkbox" id="opt-autozoom" checked> Auto-zoom to fit dots</label>
-    </div>
-  </div><!-- #map-options -->
   </div><!-- #body -->
 
   <div id="controls">
