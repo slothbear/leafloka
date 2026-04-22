@@ -60,7 +60,7 @@ async function extractLocationsWithClaude(messages) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
+        max_tokens: 4096,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: JSON.stringify(messages) }],
       }),
@@ -74,7 +74,9 @@ async function extractLocationsWithClaude(messages) {
       };
     }
 
-    const text = data.content?.[0]?.text?.trim() || '[]';
+    const raw = data.content?.[0]?.text?.trim() || '[]';
+    // Strip markdown code fences if Claude wrapped the response in them
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const parsed = JSON.parse(text);
     return {
       results: messages.map((_, i) => parsed[i] || { place: null, place_mention: null, weather: null, weather_mention: null }),
@@ -178,16 +180,19 @@ async function pollChat(videoId) {
       const texts   = items.map(i => i.snippet.displayMessage);
       const authors = items.map(i => i.authorDetails.displayName);
 
-      broadcastLog(videoId, 'info', `Claude: processing ${items.length} message${items.length > 1 ? 's' : ''}…`);
-
-      const { results: extractions, error: claudeError } = await extractLocationsWithClaude(texts);
-
-      if (claudeError) {
-        broadcastLog(videoId, 'error', `Claude failed: ${claudeError}`);
+      // Process in batches of 20 to avoid token limit issues
+      const BATCH_SIZE = 20;
+      const allExtractions = [];
+      for (let b = 0; b < texts.length; b += BATCH_SIZE) {
+        const batchTexts = texts.slice(b, b + BATCH_SIZE);
+        broadcastLog(videoId, 'info', `Claude: processing ${batchTexts.length} message${batchTexts.length > 1 ? 's' : ''}…`);
+        const { results, error: claudeError } = await extractLocationsWithClaude(batchTexts);
+        if (claudeError) broadcastLog(videoId, 'error', `Claude failed: ${claudeError}`);
+        allExtractions.push(...results);
       }
 
       for (let i = 0; i < items.length; i++) {
-        const { place, place_mention, weather, weather_mention } = extractions[i];
+        const { place, place_mention, weather, weather_mention } = allExtractions[i] || { place: null, place_mention: null, weather: null, weather_mention: null };
         const author = authors[i];
         const text   = texts[i];
 
