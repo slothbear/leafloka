@@ -271,6 +271,13 @@ app.get('/geocode', async (req, res) => {
   else res.json(result);
 });
 
+// ── Config endpoint — tells frontend if a video ID is pre-set ────
+app.get('/config', (req, res) => {
+  res.json({
+    videoId: process.env.YOUTUBE_VIDEO_ID || null,
+  });
+});
+
 // ── Health check ──────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({
@@ -278,6 +285,7 @@ app.get('/health', (req, res) => {
     activeStreams: streams.size,
     totalClients: [...streams.values()].reduce((n, s) => n + s.clients.size, 0),
     claudeEnabled: !!ANTHROPIC_API_KEY,
+    configuredVideoId: process.env.YOUTUBE_VIDEO_ID || null,
   });
 });
 
