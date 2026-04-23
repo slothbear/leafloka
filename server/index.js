@@ -148,7 +148,7 @@ function broadcast(videoId, event, data) {
 
 function broadcastLog(videoId, level, message) {
   broadcast(videoId, 'log', { level, message, ts: new Date().toISOString() });
-  console.log(`[${videoId}] [${level}] ${message}`);
+  process.stdout.write(`[${videoId}] [${level}] ${message}\n`);
 }
 
 async function pollChat(videoId) {
@@ -156,7 +156,7 @@ async function pollChat(videoId) {
   if (!stream || stream.clients.size === 0) {
     if (stream?.timer) clearTimeout(stream.timer);
     streams.delete(videoId);
-    console.log(`[${videoId}] No clients, stopped polling`);
+    process.stdout.write(`[${videoId}] No clients, stopped polling\n`);
     return;
   }
 
@@ -262,7 +262,7 @@ app.get('/stream', async (req, res) => {
     const stream = streams.get(videoId);
     if (stream) {
       stream.clients.delete(res);
-      console.log(`[${videoId}] Client left (${stream.clients.size} remaining)`);
+      process.stdout.write(`[${videoId}] Client left (${stream.clients.size} remaining)\n`);
     }
   });
 });
@@ -295,7 +295,7 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`LeafLoka server running on port ${PORT}`);
-  if (!YT_API_KEY)        console.warn('⚠️  YOUTUBE_API_KEY not set');
-  if (!ANTHROPIC_API_KEY) console.warn('⚠️  ANTHROPIC_API_KEY not set — location extraction disabled');
+  process.stdout.write(`LeafLoka server running on port ${PORT}\n`);
+  if (!YT_API_KEY)        process.stderr.write('⚠️  YOUTUBE_API_KEY not set\n');
+  if (!ANTHROPIC_API_KEY) process.stderr.write('⚠️  ANTHROPIC_API_KEY not set — location extraction disabled\n');
 });
